@@ -1,0 +1,24 @@
+# Core ML & Inference
+torch>=2.0.0
+torchvision
+anomalib>=1.0.0
+onnx>=1.14.0
+tensorrt
+pycuda
+
+# API & Server
+fastapi
+uvicorn[standard]
+prometheus_client
+opencv-python-headless
+numpy
+
+# Integration & Orchestration
+minio
+requests
+python-dotenv
+
+# Management (Development/Scripts)
+tqdm
+click
+pyyaml

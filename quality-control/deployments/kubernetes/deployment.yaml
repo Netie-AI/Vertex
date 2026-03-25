@@ -1,0 +1,47 @@
+# ==============================================================================
+# Netie AI — Kubernetes Deployment (K3s)
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netie-inference
+  namespace: netie-ai
+  labels:
+    app: netie-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: netie-inference
+  template:
+    metadata:
+      labels:
+        app: netie-inference
+    spec:
+      containers:
+        - name: inference
+          image: ghcr.io/netie-ai/edge-qc-inference:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: RTSP_STREAM_URL
+              value: "rtsp://admin:password@192.168.1.100/ch1/main"
+            - name: TRT_ENGINE_PATH
+              value: "/opt/models/patchcore_fp16.engine"
+            - name: MINIO_ENDPOINT
+              value: "netie-minio.netie-ai.svc.cluster.local:9000"
+            - name: MINIO_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: netie-credentials, key: access-key } }
+            - name: MINIO_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: netie-credentials, key: secret-key } }
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: model-volume
+              mountPath: /opt/models
+      volumes:
+        - name: model-volume
+          hostPath:
+            path: /opt/netie-ai/models
+      runtimeClassName: nvidia

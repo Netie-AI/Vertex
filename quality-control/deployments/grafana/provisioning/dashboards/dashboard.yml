@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: "Netie AI Dashboards"
+    orgId: 1
+    folder: "Netie AI"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

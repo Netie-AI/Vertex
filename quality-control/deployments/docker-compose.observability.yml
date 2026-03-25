@@ -1,0 +1,92 @@
+# ==============================================================================
+# Netie AI — Edge MLOps Backend (Docker Compose)
+# ==============================================================================
+version: "3.9"
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.8.3
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'netie-ai-airflow-secret'
+    # Custom env for DAGs
+    LABEL_STUDIO_URL: http://label-studio:8080
+    LABEL_STUDIO_TOKEN: "${LABEL_STUDIO_TOKEN:-}"
+    MINIO_ENDPOINT: minio:9000
+    MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+    MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+    TRAIN_SCRIPT_PATH: /opt/netie-ai/scripts/train_and_export.py
+    CONFIG_PATH: /opt/netie-ai/configs/patchcore_edge.yaml
+    DATASET_DIR: /opt/netie-ai/data/sample_dataset
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ../scripts:/opt/netie-ai/scripts:ro
+    - ../configs:/opt/netie-ai/configs:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - netie-edge-net
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: netie-prometheus
+    ports: ["9090:9090"]
+    networks: [netie-edge-net]
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: netie-grafana
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+    networks: [netie-edge-net]
+
+  minio:
+    image: minio/minio:latest
+    container_name: netie-minio
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ACCESS_KEY:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_SECRET_KEY:-minioadmin}"
+    command: server /data --console-address ":9001"
+    ports: ["9000:9000", "9001:9001"]
+    networks: [netie-edge-net]
+
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: netie-label-studio
+    ports: ["8080:8080"]
+    depends_on: [postgres]
+    networks: [netie-edge-net]
+
+  postgres:
+    image: postgres:16
+    container_name: netie-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    networks: [netie-edge-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: netie-airflow-webserver
+    command: webserver
+    ports: ["8081:8080"]
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: netie-airflow-scheduler
+    command: scheduler
+
+networks:
+  netie-edge-net:
+    driver: bridge
+    name: netie-edge-net
